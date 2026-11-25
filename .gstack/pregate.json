@@ -1,0 +1,76 @@
+{
+  "runner": "python3 -m pytest {files}",
+  "dependencies": {
+    "tests/e2e/__init__.py": [
+      "tests/e2e/test_flow.py"
+    ],
+    "tests/unit/__init__.py": [
+      "tests/unit/test_access.py",
+      "tests/unit/test_chat.py",
+      "tests/unit/test_mcp.py",
+      "tests/unit/test_store.py",
+      "tests/unit/test_tasks.py"
+    ],
+    "app/web/app.js": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/index.html": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/login.html": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/md.js": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/style.css": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/ui.js": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/views/chat.js": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/views/files.js": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/views/home.js": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/views/project.js": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/views/series.js": [
+      "tests/e2e/test_flow.py"
+    ],
+    "app/web/views/settings.js": [
+      "tests/e2e/test_flow.py"
+    ],
+    ".env.example": [],
+    ".githooks/pre-push": [],
+    ".github/workflows/ci.yml": [],
+    ".python-version": [],
+    "Dockerfile": [],
+    "Makefile": [],
+    "deploy/docker-compose.yml": [],
+    "deploy/update.sh": [],
+    "scripts/ci.sh": [],
+    ".dockerignore": [],
+    ".gstack/pregate.json": [],
+    "pyproject.toml": [
+      "tests/unit/test_access.py",
+      "tests/unit/test_chat.py",
+      "tests/unit/test_mcp.py",
+      "tests/unit/test_store.py",
+      "tests/unit/test_tasks.py"
+    ],
+    "uv.lock": [
+      "tests/unit/test_access.py",
+      "tests/unit/test_chat.py",
+      "tests/unit/test_mcp.py",
+      "tests/unit/test_store.py",
+      "tests/unit/test_tasks.py"
+    ]
+  }
+}

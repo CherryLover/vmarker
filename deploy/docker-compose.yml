@@ -1,0 +1,19 @@
+# ============================================================================
+#  服务器部署：公开镜像 + 同级 ./data。容器根文件系统只读，数据只能写到宿主机。
+# ============================================================================
+services:
+  vmarker:
+    image: ghcr.io/cherrylover/vmarker:latest
+    container_name: vmarker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      VM_DATA_DIR: /data
+      SQLITE_TMPDIR: /data/tmp
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8710:8710"   # 只对本机开放，由反向代理提供 HTTPS
