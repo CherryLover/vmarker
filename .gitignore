@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.db-*
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+test-results/
+playwright-report/
+*.json.key
+*service-account*.json
+*-sa.json
+.docker/
