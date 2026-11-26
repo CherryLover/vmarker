@@ -7,6 +7,7 @@
 #                      /releases/v1/     确认制作时的快照，不再改动
 #                      /video/v1.mp4     成片
 #                      /video/t7-cover.jpg  任务 7 的封面（同一任务的各版共用）
+#                      /video/v1-with-cover.mp4  下载用的带封面副本（缓存，可随时删）
 #    data/series/<id>/series.json        系列元信息
 #                    /设定.md             系列设定，每一集都会带给 AI
 #    data/trash/                         删除的项目移到这里
@@ -61,6 +62,9 @@ class Store:
 
     def video(self, pid: str, version: int) -> Path:
         return self.dir(pid) / "video" / f"v{version}.mp4"
+
+    def with_cover(self, pid: str, version: int) -> Path:
+        return self.dir(pid) / "video" / f"v{version}-with-cover.mp4"
 
     def cover(self, pid: str, tid: int) -> Path | None:
         """封面按任务存：交付前、甚至传视频前上传都能挂到这个任务产出的版本上。"""

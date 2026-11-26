@@ -15,6 +15,7 @@ import secrets
 import sqlite3
 from pathlib import Path
 
+from app.core import media
 from app.core.store import Missing, Store, StoreError
 from app.db import DB, now_iso
 
@@ -186,6 +187,13 @@ class Tasks:
             raise Missing("这个版本没有封面")
         return path
 
+    async def download_path(self, vid: int) -> tuple[dict, Path]:
+        """下载用文件：有封面就给内嵌封面的副本（按需生成并缓存），否则原片。"""
+        row, path = self.video_path(vid)
+        pid = row["project_id"]
+        dest = self.store.with_cover(pid, row["version"])
+        return row, await media.with_cover(path, self.store.cover(pid, row["task_id"]), dest)
+
     def submit(self, tid: int, claim: str, note: str) -> None:
         self.check(tid, claim)
         video = self.db.one("SELECT max(id) AS id FROM videos WHERE task_id = ? AND status = 'uploaded'", tid)
@@ -207,4 +215,5 @@ class Tasks:
         if row["status"] in ("review", "approved"):
             raise Conflict("待审或已通过的视频不能删除")
         path.unlink()
+        self.store.with_cover(row["project_id"], row["version"]).unlink(missing_ok=True)
         self.db.run("DELETE FROM videos WHERE id = ?", vid)

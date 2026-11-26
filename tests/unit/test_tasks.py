@@ -1,6 +1,9 @@
 # 制作闭环：确认 → 领取 → 上传 → 交付 → 打回 / 通过 → 播放 / 下载
 from __future__ import annotations
 
+import subprocess
+
+import imageio_ffmpeg
 import pytest
 
 from tests.conftest import JPG, MP4, PNG, make_key
@@ -123,3 +126,41 @@ def test_no_cover_is_404(user, ready, pid):
     upload(user, h, task)
     v = user.get(f"/api/v1/projects/{pid}").json()["videos"][0]
     assert v["cover"] is None and user.get(f"/api/v1/videos/{v['id']}/cover").status_code == 404
+
+
+def _ffmpeg(*args) -> str:
+    exe = imageio_ffmpeg.get_ffmpeg_exe()
+    return subprocess.run([exe, "-v", "error", "-y", *args], capture_output=True, text=True).stderr
+
+
+def _streams(path) -> str:  # ffmpeg -i 不带输出会以错误码退出，流信息在 stderr
+    exe = imageio_ffmpeg.get_ffmpeg_exe()
+    return subprocess.run([exe, "-hide_banner", "-i", str(path)], capture_output=True, text=True).stderr
+
+
+def test_download_embeds_cover_play_stays_original(user, ready, pid, cfg, tmp_path):
+    mp4, jpg = tmp_path / "a.mp4", tmp_path / "c.jpg"
+    _ffmpeg("-f", "lavfi", "-i", "testsrc=d=1:s=160x90", "-c:v", "mpeg4", str(mp4))
+    _ffmpeg("-f", "lavfi", "-i", "color=red:s=64x64", "-frames:v", "1", str(jpg))
+    h, task = make_key(user, "produce"), ready.claim("w")
+    upload(user, h, task, mp4.read_bytes())
+    cover(user, h, task, jpg.read_bytes())
+    ready.submit(task["task_id"], task["claim"], "初版")
+    vid = user.get(f"/api/v1/projects/{pid}").json()["videos"][0]["id"]
+    assert user.get(f"/api/v1/videos/{vid}").content == mp4.read_bytes()  # 在线播放不动
+    got = tmp_path / "dl.mp4"
+    got.write_bytes(user.get(f"/api/v1/videos/{vid}?download=1").content)
+    assert "(attached pic)" in _streams(got) and "(attached pic)" not in _streams(mp4)
+    cached = cfg.data_dir / "projects" / pid / "video" / "v1-with-cover.mp4"
+    assert cached.read_bytes() == got.read_bytes()
+    user.app.state.db.run("UPDATE videos SET status = 'rejected'")
+    assert user.delete(f"/api/v1/videos/{vid}").status_code == 204 and not cached.exists()
+
+
+def test_download_without_cover_or_on_failure_is_original(user, ready, pid):
+    h, task = make_key(user, "produce"), ready.claim("w")
+    upload(user, h, task)  # 假 MP4：ffmpeg 封装会失败
+    vid = user.get(f"/api/v1/projects/{pid}").json()["videos"][0]["id"]
+    assert user.get(f"/api/v1/videos/{vid}?download=1").content == MP4
+    cover(user, h, task, JPG)
+    assert user.get(f"/api/v1/videos/{vid}?download=1").content == MP4

@@ -12,7 +12,7 @@ vmarker/
 │   ├── config.py        环境变量（只放登录前必须知道的）
 │   ├── db.py            SQLite：对话、任务、视频记录、AI 供应商、API Key
 │   ├── auth/            oidc 登录 · keys API Key · deps 身份判定
-│   ├── core/            store 磁盘文件 · providers AI 上游 · chat 对话 · tasks 任务状态机
+│   ├── core/            store 磁盘文件 · providers AI 上游 · chat 对话 · tasks 任务状态机 · media 封面封装
 │   ├── api/             settings / project / chat / task 路由 · mcp_server
 │   └── web/             ui 工具 · md 渲染 · views/ 各页面
 ├── tests/               fakes 假上游 · unit 接口与 MCP · e2e 浏览器全链路
@@ -24,7 +24,7 @@ vmarker/
 ```
 data/                          docker-compose 同级，唯一可写目录
 ├── vmarker.db                 SQLite
-├── projects/<id>/project.json 元信息   *.md 内容   .history/ 旧版   releases/vN/ 快照   video/vN.mp4 + video/t<任务>-cover.jpg|png
+├── projects/<id>/project.json 元信息   *.md 内容   .history/ 旧版   releases/vN/ 快照   video/vN.mp4 + t<任务>-cover.jpg|png + vN-with-cover.mp4（下载缓存）
 ├── series/<id>/series.json    元信息   设定.md
 ├── trash/                     删除的项目和系列
 └── tmp/                       上传中的临时文件
@@ -51,3 +51,4 @@ data/                          docker-compose 同级，唯一可写目录
 - 2026-11-25 初版。
 - 2026-11-26 审片就地化：每版视频一块卡片（状态 · 提交说明 · 本版针对 · 打回意见）；待审版下方直接写意见（可拖拽调高）+ 打回 / 通过，不再弹窗；草稿跨轮询重画保留。
 - 2026-11-26 审片二次确认（打回 / 通过先上膛 4 秒，再点才提交，意见不丢）；每个任务可传一张封面 `PUT /api/v1/tasks/{tid}/cover`（JPG/PNG ≤10 MB，须在 submit 前），审片页做 poster；claim_task 返回 cover_url / cover_example。
+- 2026-11-26 下载内嵌封面：带封面的版本 `?download=1` 给 ffmpeg `-c copy` 重封装的副本（attached_pic / covr），按需生成、按 mtime 缓存，失败退回原片；在线播放仍是原片。ffmpeg 用 imageio-ffmpeg 自带静态版，镜像和本机都不用装系统包。

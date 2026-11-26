@@ -3,6 +3,7 @@
 #
 #  确认 / 审片 / 取消 / 重试只认会话；上传只认 produce 权限 + 本次领取的 claim。
 #  播放与下载走 FileResponse：自带 Range，浏览器原生 <video> 可拖动。
+#  下载（?download=1）有封面时给内嵌封面的副本，见 core/media.py；在线播放永远是原片。
 # ============================================================================
 from __future__ import annotations
 
@@ -107,7 +108,8 @@ async def upload_cover(tid: int, request: Request, x_claim: str = Header()):
 # ---------------------------------------------------------------- 播放 / 下载 / 删除
 @router.get("/videos/{vid}", dependencies=[Depends(allow())])
 async def video(vid: int, request: Request, download: bool = False):
-    row, path = _t(request).video_path(vid)
+    tasks = _t(request)
+    row, path = await tasks.download_path(vid) if download else tasks.video_path(vid)
     title = request.app.state.store.get(row["project_id"])["title"].replace("/", "-")
     return FileResponse(
         path,
