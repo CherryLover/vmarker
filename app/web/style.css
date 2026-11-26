@@ -59,8 +59,8 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
 .chip { font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 99px; background: var(--soft); color: var(--muted); white-space: nowrap; }
 .chip.queued, .chip.working { background: var(--accent-soft); color: var(--accent-ink); }
 .chip.review { background: var(--warn-soft); color: var(--warn); }
-.chip.done, .chip.ok { background: var(--good-soft); color: var(--good); }
-.chip.failed, .chip.err { background: var(--bad-soft); color: var(--bad); }
+.chip.done, .chip.ok, .chip.approved { background: var(--good-soft); color: var(--good); }
+.chip.failed, .chip.err, .chip.rejected { background: var(--bad-soft); color: var(--bad); }
 .note { border-radius: 10px; padding: 10px 12px; background: var(--soft); overflow-wrap: anywhere; }
 .note.ok { background: var(--good-soft); color: var(--good); } .note.err { background: var(--bad-soft); color: var(--bad); } .note.warn { background: var(--warn-soft); color: var(--warn); }
 .secret { font: 13px var(--mono); background: var(--soft); padding: 10px 12px; border-radius: 8px; overflow-wrap: anywhere; white-space: pre-wrap; user-select: all; }
@@ -80,6 +80,8 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
 .side { position: sticky; top: 12px; }
 @media (max-width: 960px) { .bench { grid-template-columns: minmax(0, 1fr); } .chat { height: 75vh; } .side { position: static; } }
 video { width: 100%; border-radius: 10px; background: #000; aspect-ratio: 16 / 9; }
+.take { border: 1px solid var(--line); border-radius: 12px; padding: 12px; gap: 10px; } .take.review { border-color: var(--warn); }
+textarea.feedback { resize: vertical; min-height: 96px; max-height: 60vh; }
 
 /* ------------------------------------------------------------ Markdown */
 .md { display: flex; flex-direction: column; gap: 10px; overflow-wrap: anywhere; }

@@ -120,10 +120,12 @@ def test_whole_loop(page: Page, app, fake, mp4):
         produce(app, url, key, mp4, note)
         expect(page.locator("[data-status]")).to_have_text("待审片", timeout=20000)
         if note == "初版":
-            page.get_by_role("button", name="打回").click()
-            page.get_by_label("要改什么").fill("片头太长")
-            page.get_by_role("button", name="打回").last.click()
+            take = page.locator("article.take").first
+            take.get_by_label("打回意见").fill("片头太长")
+            take.get_by_role("button", name="打回").click()
             expect(page.locator("[data-status]")).to_have_text("等待制作")
+            expect(take.locator(".chip")).to_have_text("已打回")
+            expect(take.get_by_text("打回意见：片头太长")).to_be_visible()
 
     # ---- 播放、下载、通过
     if mp4 is not MP4:
@@ -131,8 +133,13 @@ def test_whole_loop(page: Page, app, fake, mp4):
     with page.expect_download() as d:
         page.get_by_role("link", name="下载").first.click()
     assert d.value.suggested_filename == "第一支片-v2.mp4"
-    page.get_by_role("button", name="通过").click()
+    latest = page.locator("article.take").first
+    expect(latest.locator(".chip")).to_have_text("待审")
+    expect(latest.get_by_text("本版针对：片头太长")).to_be_visible()
+    latest.get_by_role("button", name="通过").click()
     expect(page.locator("[data-status]")).to_have_text("已完成")
+    expect(latest.locator(".chip")).to_have_text("已通过")
+    expect(page.locator("textarea[data-feedback]")).to_have_count(0)
     assert errors == []
 
 
