@@ -164,3 +164,28 @@ def test_download_without_cover_or_on_failure_is_original(user, ready, pid):
     assert user.get(f"/api/v1/videos/{vid}?download=1").content == MP4
     cover(user, h, task, JPG)
     assert user.get(f"/api/v1/videos/{vid}?download=1").content == MP4
+
+
+def test_download_replaces_existing_cover_instead_of_adding_track(user, ready, pid, tmp_path):
+    src, old, new, got = (tmp_path / n for n in ("src.mp4", "old.jpg", "new.png", "dl.mp4"))
+    _ffmpeg("-f", "lavfi", "-i", "color=blue:s=64x64", "-frames:v", "1", str(old))
+    _ffmpeg("-f", "lavfi", "-i", "color=red:s=48x48", "-frames:v", "1", str(new))
+    # 制作端交上来的 mp4 自己就带封面（covr）+ 音轨
+    _ffmpeg(
+        "-f", "lavfi", "-i", "testsrc=d=1:s=160x90", "-f", "lavfi", "-i", "sine=d=1", "-i", str(old),
+        "-map", "0", "-map", "1", "-map", "2", "-c:v:0", "mpeg4", "-c:a", "aac", "-c:v:1", "copy",
+        "-disposition:v:1", "attached_pic", str(src),
+    )  # fmt: skip
+    assert _streams(src).count("(attached pic)") == 1
+    h, task = make_key(user, "produce"), ready.claim("w")
+    upload(user, h, task, src.read_bytes())
+    cover(user, h, task, new.read_bytes())
+    vid = user.get(f"/api/v1/projects/{pid}").json()["videos"][0]["id"]
+    got.write_bytes(user.get(f"/api/v1/videos/{vid}?download=1").content)
+    lines = [ln for ln in _streams(got).splitlines() if "Stream #" in ln]
+    assert [("Audio" in ln, "(attached pic)" in ln) for ln in lines] == [
+        (False, False),
+        (True, False),
+        (False, True),
+    ]
+    assert "png" in lines[2] and "48x48" in lines[2]  # 是新封面，不是原来的

@@ -52,3 +52,4 @@ data/                          docker-compose 同级，唯一可写目录
 - 2026-11-26 审片就地化：每版视频一块卡片（状态 · 提交说明 · 本版针对 · 打回意见）；待审版下方直接写意见（可拖拽调高）+ 打回 / 通过，不再弹窗；草稿跨轮询重画保留。
 - 2026-11-26 审片二次确认（打回 / 通过先上膛 4 秒，再点才提交，意见不丢）；每个任务可传一张封面 `PUT /api/v1/tasks/{tid}/cover`（JPG/PNG ≤10 MB，须在 submit 前），审片页做 poster；claim_task 返回 cover_url / cover_example。
 - 2026-11-26 下载内嵌封面：带封面的版本 `?download=1` 给 ffmpeg `-c copy` 重封装的副本（attached_pic / covr），按需生成、按 mtime 缓存，失败退回原片；在线播放仍是原片。ffmpeg 用 imageio-ffmpeg 自带静态版，镜像和本机都不用装系统包。
+- 2026-11-26 修：原片已带封面时下载多出一条 mjpeg 视频轨（Quick Look 播不了）。改为只映射 `0:V` + `0:a?` + 新封面，封面序号按真视频轨数计算；已有封面一律替换。
