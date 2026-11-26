@@ -30,6 +30,10 @@ class KeyIn(BaseModel):
     scopes: list[str] = []
 
 
+class ScopesIn(BaseModel):
+    scopes: list[str] = []
+
+
 def _p(request: Request) -> Providers:
     return request.app.state.providers
 
@@ -93,6 +97,13 @@ async def list_keys(request: Request):
 @router.post("/keys", status_code=201)
 async def create_key(body: KeyIn, request: Request):
     return keys.create(request.app.state.db, body.name.strip() or "未命名", body.scopes)
+
+
+@router.put("/keys/{kid}")
+async def edit_key(kid: int, body: ScopesIn, request: Request):
+    if not keys.set_scopes(request.app.state.db, kid, body.scopes):
+        raise HTTPException(404, "Key 不存在或已吊销")
+    return {"id": kid}
 
 
 @router.delete("/keys/{kid}", status_code=204)

@@ -28,7 +28,7 @@ vi .env && chmod 600 .env   # 参照 .env.example
 claude mcp add --scope user --transport http vmarker https://你的域名/mcp --header "Authorization: Bearer vmk_..."
 ```
 
-工具：`claim_task` `report_progress` `submit_video` `fail_task` `list_projects` `get_project` `create_project` `save_file`。
+工具：`claim_task` `report_progress` `submit_video` `fail_task` `list_projects` `get_project` `create_project` `save_file`，以及 `api_index` / `call_api`——能调用全部 REST 接口。确认文案、审片、改设置这类人的动作，需要在设置页给 Key「全部权限」（admin，等同你本人）。
 视频用 HTTP 上传：`curl -fsS -T 成片.mp4 -H "Authorization: Bearer $KEY" -H "X-Claim: $CLAIM" https://你的域名/api/v1/tasks/ID/video`
 封面（可选，JPG/PNG ≤ 10 MB，审片页做 poster；须在 submit 之前上传，重传即替换；下载该版时封面会写进 mp4）：`curl -fsS -T 封面.jpg -H "Authorization: Bearer $KEY" -H "X-Claim: $CLAIM" https://你的域名/api/v1/tasks/ID/cover`
 

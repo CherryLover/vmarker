@@ -95,6 +95,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     )
     for m in (oidc, settings_routes, project_routes, chat_routes, task_routes):
         app.include_router(m.router)
+    s.app = app  # MCP 的 call_api 在进程内转发到 REST
     mcp_app, mcp_inner = mcp_server.asgi(mcp_server.build(s), s)
     app.router.routes.append(Route("/mcp", endpoint=_Asgi(mcp_app)))
     app.mount(f"/static/{ver}", CachedStatic(directory=WEB), name="assets")

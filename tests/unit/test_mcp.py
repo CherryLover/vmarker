@@ -49,14 +49,60 @@ def mcp(live, headers, fn):
         return pool.submit(asyncio.run, go()).result()
 
 
-def test_tools_have_no_self_approval(live):
+def test_tool_list(live):
     async def fn(s, call):
         return {t.name for t in (await s.list_tools()).tools}
 
     assert mcp(live, make_key(live), fn) == {
         "claim_task", "report_progress", "submit_video", "fail_task",
         "list_projects", "get_project", "create_project", "save_file",
+        "api_index", "call_api",
     }  # fmt: skip
+
+
+def test_call_api_respects_scopes(live):
+    pid = live.post("/api/v1/projects", json={"title": "t", "brief": "b"}).json()["id"]
+
+    async def fn(s, call):
+        idx = (await call("api_index"))["endpoints"]
+        assert {"method": "POST", "path": "/api/v1/projects/{pid}/confirm"}.items() <= idx[
+            [e["path"] for e in idx].index("/api/v1/projects/{pid}/confirm")
+        ].items()
+        got = await call("call_api", method="GET", path=f"/api/v1/projects/{pid}")
+        denied = await call("call_api", method="POST", path=f"/api/v1/projects/{pid}/confirm")
+        bad = await call("call_api", method="GET", path="/healthz")
+        return got, denied, bad
+
+    got, denied, bad = mcp(live, make_key(live, "plan", "produce"), fn)
+    assert got["status"] == 200 and got["body"]["id"] == pid
+    assert denied["status"] == 401  # 没有 admin，人的动作照样拒绝
+    assert "/api/v1/" in bad
+
+
+def test_admin_key_runs_whole_loop(live):
+    """admin Key：建项目 → 确认 → 领取 → 上传 → 交付 → 通过，全程不用浏览器。"""
+    h = make_key(live, "admin")
+
+    async def fn(s, call):
+        p = await call("create_project", title="全自动", brief="b")
+        await call("save_file", project_id=p["id"], name="文字稿.md", content="正文")
+        assert (await call("call_api", method="POST", path=f"/api/v1/projects/{p['id']}/confirm"))[
+            "status"
+        ] == 201
+        t = (await call("claim_task"))["task"]
+        ids = {"task_id": t["task_id"], "claim": t["claim"]}
+        url = f"{live.base_url}/api/v1/tasks/{t['task_id']}/video"
+        r = await asyncio.to_thread(httpx.put, url, content=MP4, headers={**h, "X-Claim": t["claim"]})
+        assert r.status_code == 201
+        await call("submit_video", **ids, note="n")
+        ok = await call("call_api", method="POST", path=f"/api/v1/tasks/{t['task_id']}/approve", body={})
+        keys = await call("call_api", method="GET", path="/api/v1/keys")
+        return p["id"], ok, keys
+
+    pid, ok, keys = mcp(live, h, fn)
+    assert ok["status"] < 300, ok
+    assert keys["status"] == 200 and keys["body"][0]["scopes"] == "admin"
+    assert live.get(f"/api/v1/projects/{pid}").json()["status"] == "done"
 
 
 def test_produce_loop(live):

@@ -52,6 +52,20 @@ def test_key_scopes(user, pid):
         assert user.delete(f"/api/v1/projects/{pid}", headers=h).status_code == 401
 
 
+def test_admin_key_is_owner(user, pid):
+    h = make_key(user, "produce")
+    kid = user.get("/api/v1/keys").json()[0]["id"]
+    assert user.put(f"/api/v1/keys/{kid}", json={"scopes": ["produce", "admin"]}).status_code == 200
+    user.post("/auth/logout")
+    assert user.get("/api/v1/me", headers=h).status_code == 200
+    assert user.put(f"/api/v1/files/{pid}/a.md", json={"content": "x"}, headers=h).status_code == 200
+    assert user.post(f"/api/v1/projects/{pid}/confirm", headers=h).status_code == 201
+    # 收回 admin 后立即失效
+    assert user.put(f"/api/v1/keys/{kid}", json={"scopes": ["produce"]}, headers=h).status_code == 200
+    assert user.get("/api/v1/keys", headers=h).status_code == 401
+    assert user.put("/api/v1/keys/999", json={"scopes": []}).status_code == 401  # 已登出
+
+
 def test_revoked_key(user):
     h = make_key(user)
     kid = user.get("/api/v1/keys").json()[0]["id"]

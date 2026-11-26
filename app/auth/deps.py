@@ -1,7 +1,7 @@
 # ============================================================================
 #  deps —— 请求级身份判定
 #
-#    owner             只认浏览器会话：确认、审片、设置
+#    owner             浏览器会话，或带 admin 权限的 API Key：确认、审片、设置
 #    allow("plan")     会话，或带该权限的 API Key
 #    allow()           会话，或任意有效的 API Key（只读）
 # ============================================================================
@@ -13,6 +13,12 @@ from app.auth import keys
 
 
 def owner(request: Request) -> dict:
+    header = request.headers.get("authorization")
+    if header:
+        row = bearer(request.app.state.db, header)
+        if row and "admin" in row["scopes"]:
+            return {"sub": f"key:{row['id']}", "name": row["name"], "email": ""}
+        raise HTTPException(401, "需要浏览器登录，或带 admin 权限的 API Key")
     user = request.session.get("user")
     row = request.app.state.db.one("SELECT sub FROM owner") if user else None
     if not row or row["sub"] != user["sub"]:

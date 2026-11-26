@@ -44,9 +44,14 @@ const providerRow = (p) => `<div class="item"><div class="grow"><div class="row"
   <div class="row"><button class="btn sm" data-test="${p.id}">测试</button>${p.is_default ? "" : `<button class="btn sm" data-def="${p.id}">设为默认</button>`}
     <button class="btn sm" data-edit="${p.id}">编辑</button><button class="btn sm danger" data-delp="${p.id}">删除</button></div></div>`;
 
-const keyRow = (k) => `<div class="item"><div class="grow"><b>${esc(k.name)}</b> <code>${esc(k.prefix)}…</code>
-    <p class="muted small">${esc(["read", ...k.scopes.split(",").filter(Boolean)].join(" / "))} · 最近使用 ${when(k.last_used_at)}</p></div>
-  ${k.revoked_at ? '<span class="chip">已吊销</span>' : `<button class="btn sm danger" data-revoke="${k.id}">吊销</button>`}</div>`;
+const scopesOf = (k) => k.scopes.split(",").filter(Boolean);
+const keyRow = (k) => {
+  const admin = scopesOf(k).includes("admin");
+  const ops = k.revoked_at ? '<span class="chip">已吊销</span>'
+    : `<div class="row"><button class="btn sm" data-admin="${k.id}">${admin ? "取消全部权限" : "给全部权限"}</button><button class="btn sm danger" data-revoke="${k.id}">吊销</button></div>`;
+  return `<div class="item"><div class="grow"><b>${esc(k.name)}</b> <code>${esc(k.prefix)}…</code>${admin ? ' <span class="chip err">全部权限</span>' : ""}
+    <p class="muted small">${esc(["read", ...scopesOf(k)].join(" / "))} · 最近使用 ${when(k.last_used_at)}</p></div>${ops}</div>`;
+};
 
 export async function render(root) {
   const [me, providers, keys] = await Promise.all(["me", "providers", "keys"].map((x) => api(`/api/v1/${x}`)));
@@ -57,7 +62,7 @@ export async function render(root) {
       <div>${keys.map(keyRow).join("") || '<p class="muted">还没有。</p>'}</div></section>
     <section class="card"><h2>接入 Claude（MCP）</h2><p class="muted">生成一个带「制作」权限的 Key，然后在本机执行：</p>
       <div class="secret">claude mcp add --scope user --transport http vmarker ${esc(me.base_url)}/mcp --header "Authorization: Bearer vmk_你的Key"</div>
-      <p class="muted">其他 AI 可以用 REST 接口，文档在 <a href="/api/docs" target="_blank">/api/docs</a>。</p></section>`;
+      <p class="muted">MCP 里的 api_index / call_api 能调用全部 REST 接口；人的动作（确认、审片、设置）需要 Key 有「全部权限」。其他 AI 可以直接用 REST，文档在 <a href="/api/docs" target="_blank">/api/docs</a>。</p></section>`;
   const reload = () => go("/settings");
   on(root, "[data-add]", "click", () => providerDialog());
   on(root, "[data-edit]", "click", (b) => providerDialog(providers.find((p) => p.id === +b.dataset.edit)));
@@ -72,6 +77,13 @@ export async function render(root) {
     await api(`/api/v1/providers/${b.dataset.delp}`, { method: "DELETE" });
     reload();
   });
+  on(root, "[data-admin]", "click", async (b) => {
+    const k = keys.find((x) => x.id === +b.dataset.admin), on = !scopesOf(k).includes("admin");
+    if (on && !confirm("全部权限等同你本人：能确认文案、通过/打回审片、改设置和 Key。只给你信任的程序。继续？")) return;
+    const scopes = on ? [...scopesOf(k), "admin"] : scopesOf(k).filter((s) => s !== "admin");
+    await api(`/api/v1/keys/${k.id}`, { method: "PUT", body: { scopes } });
+    reload();
+  });
   on(root, "[data-revoke]", "click", async (b) => {
     if (!confirm("吊销后，使用它的程序会立即失效。继续？")) return;
     await api(`/api/v1/keys/${b.dataset.revoke}`, { method: "DELETE" });
@@ -79,8 +91,9 @@ export async function render(root) {
   });
   on(root, "[data-key]", "click", () => dialog("生成 API Key", `<label>名称<input name="name" required maxlength="60" placeholder="Claude 制作端"></label>
     <label class="check"><input type="checkbox" name="plan"> 策划：新建项目、写文件</label>
-    <label class="check"><input type="checkbox" name="produce" checked> 制作：领任务、上传视频</label><p class="muted small">所有 Key 都能读取项目内容；不能确认文案、审片或改设置。</p>`, "生成", async (f) => {
-    const scopes = ["plan", "produce"].filter((s) => f[s]);
+    <label class="check"><input type="checkbox" name="produce" checked> 制作：领任务、上传视频</label>
+    <label class="check"><input type="checkbox" name="admin"> 全部权限：等同你本人，能确认文案、审片、改设置</label><p class="muted small">所有 Key 都能读取项目内容；没有「全部权限」的 Key 不能确认文案、审片或改设置。</p>`, "生成", async (f) => {
+    const scopes = ["plan", "produce", "admin"].filter((s) => f[s]);
     const { key } = await api("/api/v1/keys", { method: "POST", body: { name: f.name, scopes } });
     root.querySelector("[data-fresh]").innerHTML = `<p class="note warn">只显示这一次，请现在复制：</p><div class="secret" data-secret>${esc(key)}</div>`;
   }));

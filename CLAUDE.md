@@ -36,7 +36,7 @@ data/                          docker-compose 同级，唯一可写目录
 - **确认即快照**：制作端只看 releases/vN，确认后改文件不影响进行中的任务。
 - **AI 用 `<file>` 标签写文件**，不依赖函数调用；没写完整的不落盘，旧版进 .history。
 - **生成跑在后台任务里**：浏览器断线照样保存，回来能续看。
-- **AI 不能给自己放行**：确认、审片、设置只认会话；MCP 没有对应工具。
+- **人的动作只认所有者**：确认、审片、设置认浏览器会话，或带 `admin` 权限的 API Key（等同所有者，设置页可随时授予 / 收回）。MCP 的 `api_index` + `call_api` 在进程内转发到 REST，鉴权原样沿用，所以 MCP 能做的永远等于这把 Key 在 REST 上能做的。
 - **领取 = 原子 UPDATE + claim 凭证 + 租约**：过期可被抢走，旧 worker 的写入会被拒绝。
 - **第一个登录者是所有者**，其他 Pocket ID 账号拒绝。
 
@@ -53,3 +53,4 @@ data/                          docker-compose 同级，唯一可写目录
 - 2026-11-26 审片二次确认（打回 / 通过先上膛 4 秒，再点才提交，意见不丢）；每个任务可传一张封面 `PUT /api/v1/tasks/{tid}/cover`（JPG/PNG ≤10 MB，须在 submit 前），审片页做 poster；claim_task 返回 cover_url / cover_example。
 - 2026-11-26 下载内嵌封面：带封面的版本 `?download=1` 给 ffmpeg `-c copy` 重封装的副本（attached_pic / covr），按需生成、按 mtime 缓存，失败退回原片；在线播放仍是原片。ffmpeg 用 imageio-ffmpeg 自带静态版，镜像和本机都不用装系统包。
 - 2026-11-26 修：原片已带封面时下载多出一条 mjpeg 视频轨（Quick Look 播不了）。改为只映射 `0:V` + `0:a?` + 新封面，封面序号按真视频轨数计算；已有封面一律替换。
+- 2026-11-26 MCP 覆盖全部接口：新增 `api_index`（列出全部 REST）与 `call_api`（进程内转发，鉴权不变）；API Key 新增 `admin` 权限（等同所有者，隐含 plan + produce），`PUT /api/v1/keys/{kid}` 改权限，设置页一键授予 / 收回。
