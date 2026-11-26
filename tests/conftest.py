@@ -14,6 +14,7 @@ from tests.fakes import free_port, serve
 from tests.fakes import upstream as F
 
 MP4 = b"\x00\x00\x00\x18ftypmp42" + b"v" * 5000
+JPG, PNG = b"\xff\xd8\xff\xe0" + b"j" * 100, b"\x89PNG\r\n\x1a\n" + b"p" * 100
 
 
 @pytest.fixture(scope="session")

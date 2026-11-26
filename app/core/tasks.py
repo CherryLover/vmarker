@@ -39,7 +39,11 @@ class Tasks:
         return [{k: v for k, v in r.items() if k != "claim"} for r in rows]
 
     def videos(self, pid: str) -> list[dict]:
-        return self.db.all("SELECT * FROM videos WHERE project_id = ? ORDER BY version DESC", pid)
+        rows = self.db.all("SELECT * FROM videos WHERE project_id = ? ORDER BY version DESC", pid)
+        for r in rows:  # cover = 封面修改时间，前端拿来做 poster 的缓存戳；没有封面为 None
+            path = self.store.cover(pid, r["task_id"])
+            r["cover"] = int(path.stat().st_mtime) if path else None
+        return rows
 
     def status(self, pid: str) -> str:
         row = self.db.one("SELECT status FROM tasks WHERE project_id = ? ORDER BY id DESC LIMIT 1", pid)
@@ -165,6 +169,22 @@ class Tasks:
                 (pid, tid, version, dest.stat().st_size, now_iso()),
             )
         return {"version": version, "size": dest.stat().st_size}
+
+    def set_cover(self, tid: int, claim: str, tmp: Path, ext: str) -> None:
+        """同一任务只留一张封面，重复上传即替换。"""
+        pid = self.check(tid, claim)["project_id"]
+        folder = self.store.dir(pid) / "video"
+        folder.mkdir(exist_ok=True)
+        for old in folder.glob(f"t{tid}-cover.*"):
+            old.unlink()
+        os.replace(tmp, folder / f"t{tid}-cover.{ext}")
+
+    def cover_path(self, vid: int) -> Path:
+        row = self.db.one("SELECT project_id, task_id FROM videos WHERE id = ?", vid)
+        path = self.store.cover(row["project_id"], row["task_id"]) if row else None
+        if not path:
+            raise Missing("这个版本没有封面")
+        return path
 
     def submit(self, tid: int, claim: str, note: str) -> None:
         self.check(tid, claim)

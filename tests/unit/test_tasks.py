@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import MP4, make_key
+from tests.conftest import JPG, MP4, PNG, make_key
 
 
 @pytest.fixture
@@ -91,3 +91,35 @@ def test_fail_retry_cancel(user, ready, pid):
     assert user.post(f"/api/v1/tasks/{t['task_id']}/retry").status_code == 409
     assert user.post(f"/api/v1/tasks/{new}/cancel").status_code == 204
     assert ready.claim("w") is None
+
+
+def cover(user, h, task, data, claim=None):
+    headers = {**h, "X-Claim": claim or task["claim"]}
+    return user.put(f"/api/v1/tasks/{task['task_id']}/cover", content=data, headers=headers)
+
+
+def test_cover_before_video_becomes_poster(user, ready, pid, cfg):
+    h, task = make_key(user, "produce"), ready.claim("w")
+    assert cover(user, h, task, b"GIF89a....").status_code == 422
+    assert cover(user, h, task, JPG, claim="wrong").status_code == 409
+    assert cover(user, make_key(user, "plan"), task, JPG).status_code == 403
+    assert cover(user, h, task, JPG).json() == {"cover": "jpg"}  # 先于视频上传
+    upload(user, h, task)
+    assert cover(user, h, task, PNG).status_code == 201  # 重传替换，旧格式不残留
+    assert [f.name for f in (cfg.data_dir / "projects" / pid / "video").glob("t*")] == [
+        f"t{task['task_id']}-cover.png"
+    ]
+    ready.submit(task["task_id"], task["claim"], "初版")
+    assert cover(user, h, task, JPG).status_code == 409  # 交付后领取失效
+    v = user.get(f"/api/v1/projects/{pid}").json()["videos"][0]
+    assert v["cover"]
+    r = user.get(f"/api/v1/videos/{v['id']}/cover")
+    assert r.content == PNG and r.headers["content-type"] == "image/png"
+    assert list((cfg.data_dir / "tmp").iterdir()) == []
+
+
+def test_no_cover_is_404(user, ready, pid):
+    h, task = make_key(user, "produce"), ready.claim("w")
+    upload(user, h, task)
+    v = user.get(f"/api/v1/projects/{pid}").json()["videos"][0]
+    assert v["cover"] is None and user.get(f"/api/v1/videos/{v['id']}/cover").status_code == 404

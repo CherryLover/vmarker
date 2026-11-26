@@ -70,13 +70,19 @@ function makePanel(root, id, first) {
 
   function bind() {
     act("[data-confirm]", () => `/api/v1/projects/${id}/confirm`);
-    act("[data-approve]", (b) => `/api/v1/tasks/${b.dataset.approve}/approve`);
     act("[data-retry]", (b) => `/api/v1/tasks/${b.dataset.retry}/retry`);
     act("[data-cancel]", (b) => `/api/v1/tasks/${b.dataset.cancel}/cancel`);
     pane.querySelectorAll("textarea[data-feedback]").forEach((a) => a.addEventListener("input", () => drafts.set(a.dataset.feedback, a.value)));
+    on(pane, "[data-approve]", "click", async (b) => {
+      if (!armed(b, "确定通过？")) return;
+      await api(`/api/v1/tasks/${b.dataset.approve}/approve`, { method: "POST" });
+      await reload();
+    });
     on(pane, "[data-reject]", "click", async (b) => {
-      const feedback = pane.querySelector(`textarea[data-feedback="${b.dataset.reject}"]`).value;
-      await api(`/api/v1/tasks/${b.dataset.reject}/reject`, { method: "POST", body: { feedback } });
+      const box = pane.querySelector(`textarea[data-feedback="${b.dataset.reject}"]`);
+      if (!box.value.trim()) { box.focus(); throw new Error("先写打回意见"); }
+      if (!armed(b, "确定打回？")) return;
+      await api(`/api/v1/tasks/${b.dataset.reject}/reject`, { method: "POST", body: { feedback: box.value } });
       drafts.delete(b.dataset.reject);
       toast("已打回，并生成了新任务");
       await reload();
@@ -93,6 +99,16 @@ function makePanel(root, id, first) {
     if (!pane.isConnected) return clearInterval(timer);
     if (!document.hidden) draw(await api(`/api/v1/projects/${id}`).catch(() => first));
   }, 10000);
+}
+
+// 二次确认：第一次点只“上膛”换文案，4 秒内再点才算数，过时自动复原。意见框不受影响。
+function armed(b, label) {
+  if (b.dataset.armed) return true;
+  const text = b.textContent;
+  b.dataset.armed = "1";
+  b.textContent = label;
+  setTimeout(() => { delete b.dataset.armed; b.textContent = text; }, 4000);
+  return false;
 }
 
 // 打回会立刻排一个新任务并带上意见，所以某版的打回意见 = 紧随其后那个任务的 feedback（tasks 按 id 倒序）
@@ -117,7 +133,7 @@ const videoCard = (v, task, rework) => `<article class="take col ${esc(v.status)
       <strong>v${v.version}</strong><span class="muted small">${size(v.size)} · ${when(v.created_at)}</span></div>
     <div class="row"><a class="btn sm" href="/api/v1/videos/${v.id}?download=1" download>下载</a>
     ${["rejected", "uploaded"].includes(v.status) ? `<button class="btn sm danger" data-delv="${v.id}">删除</button>` : ""}</div></div>
-  <video controls preload="metadata" playsinline src="/api/v1/videos/${v.id}"></video>
+  <video controls preload="metadata" playsinline src="/api/v1/videos/${v.id}"${v.cover ? ` poster="/api/v1/videos/${v.id}/cover?t=${v.cover}"` : ""}></video>
   ${task?.feedback ? `<p class="small muted">本版针对：${esc(task.feedback)}</p>` : ""}
   ${v.note ? `<div class="md small"><strong>提交说明</strong>${md(v.note)}</div>` : ""}
   ${rework?.feedback ? `<div class="note err small">打回意见：${esc(rework.feedback)}</div>` : ""}

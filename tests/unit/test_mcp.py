@@ -11,7 +11,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 from app.main import create_app
-from tests.conftest import MP4, login, make_cfg, make_key
+from tests.conftest import JPG, MP4, login, make_cfg, make_key
 from tests.fakes import free_port, serve
 
 
@@ -81,6 +81,14 @@ def test_produce_loop(live):
         assert "还没有上传" in await call("submit_video", **ids, note="n")
         r = await asyncio.to_thread(
             httpx.put, got["upload_url"], content=MP4, headers={**h, "X-Claim": t["claim"]}
+        )
+        assert r.status_code == 201
+        assert (
+            got["cover_url"].endswith(f"/tasks/{t['task_id']}/cover")
+            and "-T 封面.jpg" in got["cover_example"]
+        )
+        r = await asyncio.to_thread(
+            httpx.put, got["cover_url"], content=JPG, headers={**h, "X-Claim": t["claim"]}
         )
         assert r.status_code == 201
         assert (await call("submit_video", **ids, note="初版"))["status"] == "review"

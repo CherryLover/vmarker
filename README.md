@@ -30,6 +30,7 @@ claude mcp add --scope user --transport http vmarker https://你的域名/mcp --
 
 工具：`claim_task` `report_progress` `submit_video` `fail_task` `list_projects` `get_project` `create_project` `save_file`。
 视频用 HTTP 上传：`curl -fsS -T 成片.mp4 -H "Authorization: Bearer $KEY" -H "X-Claim: $CLAIM" https://你的域名/api/v1/tasks/ID/video`
+封面（可选，JPG/PNG ≤ 10 MB，审片页做 poster；须在 submit 之前上传，重传即替换）：`curl -fsS -T 封面.jpg -H "Authorization: Bearer $KEY" -H "X-Claim: $CLAIM" https://你的域名/api/v1/tasks/ID/cover`
 
 REST 文档在 `/api/docs`。
 

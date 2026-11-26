@@ -1,6 +1,7 @@
 # 真浏览器走完整条链路：登录 → 配 AI 并测试 → 建片 → 对话写文件 → 转系列 → 确认 → 制作 → 审片 → 播放下载
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 
@@ -9,7 +10,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from app.main import create_app
-from tests.conftest import MP4, make_cfg
+from tests.conftest import JPG, MP4, make_cfg
 from tests.fakes import free_port, serve
 from tests.fakes import upstream as F
 
@@ -123,6 +124,7 @@ def test_whole_loop(page: Page, app, fake, mp4):
             take = page.locator("article.take").first
             take.get_by_label("打回意见").fill("片头太长")
             take.get_by_role("button", name="打回").click()
+            take.get_by_role("button", name="确定打回？").click()
             expect(page.locator("[data-status]")).to_have_text("等待制作")
             expect(take.locator(".chip")).to_have_text("已打回")
             expect(take.get_by_text("打回意见：片头太长")).to_be_visible()
@@ -134,9 +136,15 @@ def test_whole_loop(page: Page, app, fake, mp4):
         page.get_by_role("link", name="下载").first.click()
     assert d.value.suggested_filename == "第一支片-v2.mp4"
     latest = page.locator("article.take").first
+    expect(page.locator("article.take").last.locator("video")).to_have_attribute(
+        "poster", re.compile(r"/cover\?t=\d+$")
+    )
+    expect(latest.locator("video")).not_to_have_attribute("poster", re.compile(".*"))
     expect(latest.locator(".chip")).to_have_text("待审")
     expect(latest.get_by_text("本版针对：片头太长")).to_be_visible()
     latest.get_by_role("button", name="通过").click()
+    expect(page.locator("[data-status]")).to_have_text("待审片")  # 第一次只是上膛
+    latest.get_by_role("button", name="确定通过？").click()
     expect(page.locator("[data-status]")).to_have_text("已完成")
     expect(latest.locator(".chip")).to_have_text("已通过")
     expect(page.locator("textarea[data-feedback]")).to_have_count(0)
@@ -153,4 +161,9 @@ def produce(app, url: str, key: str, mp4: bytes, note: str):
     headers = {"Authorization": f"Bearer {key}", "X-Claim": t["claim"]}
     r = httpx.put(f"{url}/api/v1/tasks/{t['task_id']}/video", content=mp4, headers=headers)
     assert r.status_code == 201
+    if note == "初版":  # 只给第一版传封面：有封面带 poster，没封面保持原样
+        assert (
+            httpx.put(f"{url}/api/v1/tasks/{t['task_id']}/cover", content=JPG, headers=headers).status_code
+            == 201
+        )
     app.state.tasks.submit(t["task_id"], t["claim"], note)

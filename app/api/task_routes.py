@@ -53,28 +53,53 @@ async def cancel(tid: int, request: Request):
     _t(request).cancel(tid)
 
 
-# ---------------------------------------------------------------- 上传（原始字节流：curl -T video.mp4）
-async def _receive(request: Request, tmp, limit: int) -> None:
+# ---------------------------------------------------------------- 上传（原始字节流：curl -T 文件）
+PRODUCE = Depends(allow("produce"))
+COVER_MB = 10
+IMAGE = {b"\xff\xd8\xff": ("jpg", "image/jpeg"), b"\x89PNG": ("png", "image/png")}
+
+
+async def _receive(request: Request, tmp, limit: int, what: str) -> bytes:
+    """流式落盘，返回前 12 字节供调用方判断格式。"""
     size, head = 0, b""
     with tmp.open("wb") as f:
         async for chunk in request.stream():
             size += len(chunk)
             if size > limit:
-                raise HTTPException(413, f"视频超过上限 {limit // 1048576} MB")
+                raise HTTPException(413, f"{what}超过上限 {limit // 1048576} MB")
             head = head if len(head) >= 12 else (head + chunk)[:12]
             f.write(chunk)
-    if head[4:8] != b"ftyp":
-        raise HTTPException(422, "不是有效的 MP4 文件")
+    return head
 
 
-@router.put("/tasks/{tid}/video", status_code=201, dependencies=[Depends(allow("produce"))])
+def _image(head: bytes) -> tuple[str, str] | None:
+    return next((v for magic, v in IMAGE.items() if head.startswith(magic)), None)
+
+
+@router.put("/tasks/{tid}/video", status_code=201, dependencies=[PRODUCE])
 async def upload(tid: int, request: Request, x_claim: str = Header()):
     _t(request).check(tid, x_claim)
     state = request.app.state
     tmp = state.store.root / "tmp" / f"{secrets.token_hex(8)}.part"
     try:
-        await _receive(request, tmp, state.cfg.max_video_mb * 1048576)
+        head = await _receive(request, tmp, state.cfg.max_video_mb * 1048576, "视频")
+        if head[4:8] != b"ftyp":
+            raise HTTPException(422, "不是有效的 MP4 文件")
         return _t(request).add_video(tid, x_claim, tmp)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+@router.put("/tasks/{tid}/cover", status_code=201, dependencies=[PRODUCE])
+async def upload_cover(tid: int, request: Request, x_claim: str = Header()):
+    _t(request).check(tid, x_claim)
+    tmp = request.app.state.store.root / "tmp" / f"{secrets.token_hex(8)}.part"
+    try:
+        kind = _image(await _receive(request, tmp, COVER_MB * 1048576, "封面"))
+        if not kind:
+            raise HTTPException(422, "封面只接受 JPG 或 PNG")
+        _t(request).set_cover(tid, x_claim, tmp, kind[0])
+        return {"cover": kind[0]}
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -91,6 +116,13 @@ async def video(vid: int, request: Request, download: bool = False):
         content_disposition_type="attachment" if download else "inline",
         headers={"Cache-Control": "private, no-cache"},
     )
+
+
+@router.get("/videos/{vid}/cover", dependencies=[Depends(allow())])
+async def cover(vid: int, request: Request):
+    path = _t(request).cover_path(vid)
+    media = "image/png" if path.suffix == ".png" else "image/jpeg"
+    return FileResponse(path, media_type=media, headers={"Cache-Control": "private, no-cache"})
 
 
 @router.delete("/videos/{vid}", status_code=204, dependencies=[OWNER])
