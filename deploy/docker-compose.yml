@@ -17,3 +17,13 @@ services:
       - ./data:/data
     ports:
       - "127.0.0.1:8710:8710"   # 只对本机开放，由反向代理提供 HTTPS
+    networks: [default, proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.vmarker.rule=Host(`vmarker.flyooo.uk`)
+      - traefik.http.routers.vmarker.tls.certresolver=letsencrypt
+      - traefik.http.services.vmarker.loadbalancer.server.port=8710
+
+networks:
+  proxy:
+    external: true

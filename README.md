@@ -17,7 +17,7 @@ vi .env && chmod 600 .env   # 参照 .env.example
 ./update.sh                 # 首次和以后更新都只跑这一句
 ```
 
-服务监听 `127.0.0.1:8710`，用反向代理提供 HTTPS。反向代理要允许大文件上传，并关闭 `/api` 的响应缓冲。
+服务监听 `127.0.0.1:8710`，用反向代理提供 HTTPS；`deploy/docker-compose.yml` 自带 Traefik label（外部网络 `proxy`），不用 Traefik 的话删掉 `networks`、`labels` 和顶层 `networks`。反向代理要允许大文件上传，并关闭 `/api` 的响应缓冲。
 经过 Cloudflare 代理时，单次上传受套餐限制（免费版 100 MB）。
 
 ## 接入 Claude
