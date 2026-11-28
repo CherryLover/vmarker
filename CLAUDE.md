@@ -14,7 +14,7 @@ vmarker/
 │   ├── auth/            oidc 登录 · keys API Key · deps 身份判定
 │   ├── core/            store 磁盘文件 · providers AI 上游 · chat 对话 · tasks 任务状态机 · media 封面封装
 │   ├── api/             settings / project / chat / task 路由 · mcp_server
-│   └── web/             ui 工具 · md 渲染 · views/ 各页面
+│   └── web/             app 路由（URL 即状态）· ui 工具 · md 渲染 · views/ 各页面
 ├── tests/               fakes 假上游 · unit 接口与 MCP · e2e 浏览器全链路
 ├── deploy/              docker-compose + update.sh（手工更新；日常由 CI 的 deploy job 自动上线）
 ├── scripts/ci.sh        本地 CI = GitHub Actions 跑的同一个脚本
@@ -39,6 +39,8 @@ data/                          docker-compose 同级，唯一可写目录
 - **人的动作只认所有者**：确认、审片、设置认浏览器会话，或带 `admin` 权限的 API Key（等同所有者，设置页可随时授予 / 收回）。MCP 的 `api_index` + `call_api` 在进程内转发到 REST，鉴权原样沿用，所以 MCP 能做的永远等于这把 Key 在 REST 上能做的。
 - **领取 = 原子 UPDATE + claim 凭证 + 租约**：过期可被抢走，旧 worker 的写入会被拒绝。
 - **第一个登录者是所有者**，其他 Pocket ID 账号拒绝。
+- **前端 URL 即状态**：项目标签、打开的文件都在路径里（`/p/<id>[/chat|files|make][/文件名]`、`/s/<id>[/files/文件名]`），刷新 / 分享 / 后退都对；新增前端路由要同步 `app/main.py` 的 `PAGES`。跳转三种：`go` 前进、`go(…, {replace})` 原地换（换标签）、`refresh` 重画当前页（保存后用，不留历史）。同项目内跳转只调视图的 `update`，对话流和轮询不断。
+- **宽窄两套布局一份 DOM**：>960 左对话右标签；≤960 一次一块、标签吸顶；≤720 主导航变底部标签栏、面包屑只留上一级当「‹ 返回」、账号进设置页。
 
 ## 开发规范
 
@@ -55,3 +57,4 @@ data/                          docker-compose 同级，唯一可写目录
 - 2026-11-26 修：原片已带封面时下载多出一条 mjpeg 视频轨（Quick Look 播不了）。改为只映射 `0:V` + `0:a?` + 新封面，封面序号按真视频轨数计算；已有封面一律替换。
 - 2026-11-26 MCP 覆盖全部接口：新增 `api_index`（列出全部 REST）与 `call_api`（进程内转发，鉴权不变）；API Key 新增 `admin` 权限（等同所有者，隐含 plan + produce），`PUT /api/v1/keys/{kid}` 改权限，设置页一键授予 / 收回。
 - 2026-11-28 自动上线：CI 在 image 之后加 deploy job，经 Tailscale（tag:ci 临时节点）SSH 到 docker-test，执行 `/opt/deploy/deploy.sh vmarker <sha>`；钥匙被 command= 锁死，健康检查失败自动回滚到 `:previous` 并让 job 失败。
+- 2026-11-28 导航重做 + 手机适配：URL 承载标签与打开的文件；保存类操作不再往历史里塞重复页；页内「返回」按来源决定真后退还是原地替换；切页回顶、后退恢复滚动、标签页标题随页面变；面包屑（系列 / 系列名）与主导航归属（系列里的集高亮「系列」）；手机底部标签栏、项目三块分标签、页头按钮换行。`tests/e2e/test_nav.py` 覆盖。

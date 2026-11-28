@@ -1,6 +1,6 @@
 // 设置：AI 模型（OpenAI 格式）、API Key、MCP 接入
 import { api, dialog, esc, formData, on, toast, when } from "/static/ui.js";
-import { go } from "/static/app.js";
+import { page, refresh } from "/static/app.js";
 
 const PRESETS = {
   OpenAI: "https://api.openai.com/v1",
@@ -19,7 +19,7 @@ function providerDialog(p = {}) {
     <select data-pick class="hidden" aria-label="从列表选择模型"></select>`, "保存并测试", async (f) => {
     const { test } = await api(p.id ? `/api/v1/providers/${p.id}` : "/api/v1/providers", { method: p.id ? "PUT" : "POST", body: f });
     toast(test.ok ? `测试通过（${test.ms} ms）：${test.detail}` : `已保存，但测试失败：${test.detail}`, test.ok ? "" : "error");
-    go("/settings");
+    refresh();
   });
   const form = d.querySelector("form");
   on(d, "[data-preset]", "click", (b) => { form.base_url.value = PRESETS[b.dataset.preset]; form.elements.name.value ||= b.dataset.preset; });
@@ -55,6 +55,7 @@ const keyRow = (k) => {
 
 export async function render(root) {
   const [me, providers, keys] = await Promise.all(["me", "providers", "keys"].map((x) => api(`/api/v1/${x}`)));
+  page({ title: "设置", section: "/settings" });
   root.innerHTML = `<h1>设置</h1>
     <section class="card"><div class="row between"><h2>AI 模型</h2><button class="btn primary" data-add>添加 AI</button></div>
       <p class="muted">任何兼容 OpenAI 格式的接口都可以。保存时会真实对话一次来验证。</p><div>${providers.map(providerRow).join("") || '<p class="muted">还没有配置。</p>'}</div></section>
@@ -62,8 +63,10 @@ export async function render(root) {
       <div>${keys.map(keyRow).join("") || '<p class="muted">还没有。</p>'}</div></section>
     <section class="card"><h2>接入 Claude（MCP）</h2><p class="muted">生成一个带「制作」权限的 Key，然后在本机执行：</p>
       <div class="secret">claude mcp add --scope user --transport http vmarker ${esc(me.base_url)}/mcp --header "Authorization: Bearer vmk_你的Key"</div>
-      <p class="muted">MCP 里的 api_index / call_api 能调用全部 REST 接口；人的动作（确认、审片、设置）需要 Key 有「全部权限」。其他 AI 可以直接用 REST，文档在 <a href="/api/docs" target="_blank">/api/docs</a>。</p></section>`;
-  const reload = () => go("/settings");
+      <p class="muted">MCP 里的 api_index / call_api 能调用全部 REST 接口；人的动作（确认、审片、设置）需要 Key 有「全部权限」。其他 AI 可以直接用 REST，文档在 <a href="/api/docs" target="_blank">/api/docs</a>。</p></section>
+    <section class="card"><h2>账号</h2><div class="row between"><span>${esc(me.name)}</span>
+      <form method="post" action="/auth/logout"><button class="btn sm">退出登录</button></form></div></section>`;
+  const reload = refresh;
   on(root, "[data-add]", "click", () => providerDialog());
   on(root, "[data-edit]", "click", (b) => providerDialog(providers.find((p) => p.id === +b.dataset.edit)));
   on(root, "[data-test]", "click", async (b) => {

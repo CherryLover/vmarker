@@ -4,9 +4,21 @@ from __future__ import annotations
 from tests.conftest import add_ai, login, make_key
 from tests.fakes import upstream as F
 
+# 前端路由能到的每一种地址（刷新 / 直接打开）：未登录去登录页，登录后拿到单页应用
+DEEP_LINKS = (
+    "/",
+    "/series",
+    "/settings",
+    "/p/p-0000000000",
+    "/p/p-0000000000/make",
+    "/p/p-0000000000/files/%E6%96%87%E5%AD%97%E7%A8%BF.md",
+    "/s/s-0000000000",
+    "/s/s-0000000000/files/%E8%AE%BE%E5%AE%9A.md",
+)
+
 
 def test_signed_out(anon):
-    for p in ("/", "/settings", "/p/p-0000000000"):
+    for p in DEEP_LINKS:
         assert anon.get(p, follow_redirects=False).headers["location"] == "/login"
     for p in ("me", "projects", "providers", "keys", "videos/1"):
         assert anon.get(f"/api/v1/{p}").status_code == 401
@@ -25,6 +37,13 @@ def test_session_of_non_owner_lands_on_login_without_loop(user):
     user.app.state.db.run("UPDATE owner SET sub = 'someone-else'")
     assert user.get("/", follow_redirects=False).headers["location"] == "/login"
     assert user.get("/login", follow_redirects=False).status_code == 200
+
+
+def test_deep_links_serve_app(user):
+    for p in DEEP_LINKS:
+        r = user.get(p, follow_redirects=False)
+        assert r.status_code == 200 and '<main class="wrap">' in r.text, p
+    assert user.get("/p/p-0000000000/files/a/b").status_code == 404  # 不认识的深层路径不兜底
 
 
 def test_forged_callback(anon):

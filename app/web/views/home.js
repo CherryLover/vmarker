@@ -1,6 +1,6 @@
 // 视频列表：按状态、系列筛选；新建视频
 import { api, chip, dialog, esc, on, STATUS, when } from "/static/ui.js";
-import { go } from "/static/app.js";
+import { go, page } from "/static/app.js";
 
 export async function newProject(sid = "") {
   const all = await api("/api/v1/series");
@@ -20,10 +20,11 @@ export const projectCard = (p, sub = "") => `<a class="card" href="/p/${esc(p.id
 export async function render(root) {
   const [list, series] = await Promise.all([api("/api/v1/projects"), api("/api/v1/series")]);
   const names = Object.fromEntries(series.map((s) => [s.id, s.name]));
+  page({ title: "视频", section: "/" });
   const options = (m) => Object.entries(m).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join("");
-  root.innerHTML = `<div class="row between"><h1>视频</h1><div class="row">
-      <select data-f="status" aria-label="状态" style="width:auto"><option value="">全部状态</option>${options(STATUS)}</select>
-      <select data-f="series_id" aria-label="系列" style="width:auto"><option value="">全部系列</option>${options(names)}</select>
+  root.innerHTML = `<div class="page-head"><h1>视频</h1><div class="row filters">
+      <select data-f="status" aria-label="状态"><option value="">全部状态</option>${options(STATUS)}</select>
+      <select data-f="series_id" aria-label="系列"><option value="">全部系列</option>${options(names)}</select>
       <button class="btn primary" data-new>新建视频</button></div></div><div class="grid" data-list></div>`;
   const draw = () => {
     const f = [...root.querySelectorAll("[data-f]")].filter((s) => s.value);

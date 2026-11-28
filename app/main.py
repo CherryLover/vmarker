@@ -25,7 +25,17 @@ from app.core.tasks import Conflict, Tasks
 from app.db import DB
 
 WEB = Path(__file__).parent / "web"
-PAGES = ("/", "/series", "/settings", "/p/{oid}", "/s/{oid}", "/settings/{section}")
+# 前端路由（app/web/app.js ROUTES）能到的地址，刷新 / 直接打开都回 index.html
+PAGES = (
+    "/",
+    "/series",
+    "/settings",
+    "/p/{oid}",
+    "/p/{oid}/{tab}",
+    "/p/{oid}/files/{name}",
+    "/s/{oid}",
+    "/s/{oid}/files/{name}",
+)
 ERRORS = {StoreError: 422, Missing: 404, Conflict: 409, LLMError: 502}
 CSP = (
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "

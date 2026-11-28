@@ -1,35 +1,57 @@
-// 项目工作台：左边对话，右边文件 / 制作
+// 项目工作台：对话 / 文件 / 制作三块。宽屏左对话右标签；窄屏一次一块，顶部标签切换。
+// 当前标签和打开的文件都在 URL 里：/p/<id>[/chat|files|make][/文件名]
 import { api, chip, dialog, esc, on, size, toast, when } from "/static/ui.js";
-import { go } from "/static/app.js";
+import { go, page, refresh } from "/static/app.js";
 import { md } from "/static/md.js";
 import { chatPanel } from "/static/views/chat.js";
 import { filesPanel } from "/static/views/files.js";
 
 const VIDEO = { uploaded: "已上传", review: "待审", approved: "已通过", rejected: "已打回" };
+const narrow = matchMedia("(max-width: 960px)");
+const TABS = [["chat", "对话"], ["files", "文件"], ["make", "制作"]];
 
-export async function render(root, id) {
+export async function render(root, params) {
+  const { id } = params;
   const [p, series] = await Promise.all([api(`/api/v1/projects/${id}`), api("/api/v1/series")]);
-  root.innerHTML = `<div class="row between"><div class="grow"><div class="row"><h1>${esc(p.title)}</h1><span data-status>${chip(p.status)}</span></div>
-      <p class="muted">${p.series ? `<a href="/s/${esc(p.series.id)}">${esc(p.series.name)}</a> · 第 ${p.position} 集 · ` : ""}${esc(p.brief)}</p></div>
-    <div class="row"><button class="btn" data-edit>编辑</button>${p.series ? "" : '<button class="btn" data-series>转成系列</button>'}
-      <button class="btn danger" data-del>删除</button></div></div>
-    <div class="bench"><section class="card chat" data-chat></section>
-      <section class="card side"><div class="tabs" role="tablist"><button role="tab" data-tab="files">文件</button><button role="tab" data-tab="make">制作</button></div>
-        <div class="col" data-pane="files"></div><div class="col" data-pane="make"></div></section></div>`;
+  page({ title: p.title, section: p.series ? "/series" : "/",
+    crumbs: p.series ? [["系列", "/series"], [p.series.name, `/s/${p.series.id}`]] : [["视频", "/"]] });
+  root.innerHTML = `<div class="page-head"><div><div class="row"><h1>${esc(p.title)}</h1><span data-status>${chip(p.status)}</span></div>
+      <p class="muted">${p.series ? `第 ${p.position} 集 · ` : ""}${esc(p.brief)}</p></div>
+    <div class="row"><button class="btn sm" data-edit>编辑</button>${p.series ? "" : '<button class="btn sm" data-series>转成系列</button>'}
+      <button class="btn sm danger" data-del>删除</button></div></div>
+    <div class="bench project"><nav class="tabs ptabs" role="tablist" aria-label="项目">${TABS.map(([k, label]) =>
+      `<a role="tab" href="/p/${esc(id)}/${k}" data-to="${k}" data-replace>${label}</a>`).join("")}</nav>
+      <section class="card chat" data-pane="chat"></section>
+      <section class="card side"><div class="col" data-pane="files"></div><div class="col" data-pane="make"></div></section></div>`;
 
-  const files = filesPanel(root.querySelector('[data-pane="files"]'), id);
-  const tab = (name) => {
-    root.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === name));
-    root.querySelectorAll("[data-pane]").forEach((d) => d.classList.toggle("hidden", d.dataset.pane !== name));
-  };
-  on(root, "[data-tab]", "click", (b) => tab(b.dataset.tab));
-  tab(p.tasks.length ? "make" : "files");
+  // ------------------------------------------------------------ 标签：URL → 显示哪块
+  // 没指定标签时：有任务看制作；否则窄屏看对话、宽屏右侧看文件
+  let tab = null, file = params.file;
+  const panes = [...root.querySelectorAll("[data-pane]")], side = root.querySelector(".side");
+  function paint() {
+    if (!root.isConnected) return narrow.removeEventListener("change", paint);
+    const want = tab || (p.tasks.length ? "make" : "chat");
+    const cur = narrow.matches ? want : want === "make" ? "make" : "files";
+    const visible = (name) => name === cur || (name === "chat" && !narrow.matches);  // 宽屏对话常驻左栏
+    panes.forEach((d) => d.classList.toggle("hidden", !visible(d.dataset.pane)));
+    side.classList.toggle("hidden", cur === "chat");
+    root.querySelectorAll("[data-to]").forEach((a) => a.setAttribute("aria-selected", a.dataset.to === cur));
+  }
+  const files = filesPanel(root.querySelector('[data-pane="files"]'), id, `/p/${id}/files`);
+  function update(next) {
+    tab = next.tab || (next.file ? "files" : null);
+    paint();
+    if (next.file !== file) files.show(file = next.file);
+  }
+  narrow.addEventListener("change", paint);
+  update(params);
+  files.show(file);
 
   on(root, "[data-edit]", "click", () => dialog("编辑视频", `<label>标题<input name="title" required maxlength="120" value="${esc(p.title)}"></label>
     <label>需求<textarea name="brief">${esc(p.brief)}</textarea></label><label>系列<select name="series_id"><option value="">独立视频</option>
     ${series.map((s) => `<option value="${esc(s.id)}" ${s.id === p.series_id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label>`, "保存", async (f) => {
     await api(`/api/v1/projects/${id}`, { method: "PUT", body: { ...f, series_id: f.series_id || null } });
-    go(`/p/${id}`);
+    refresh();
   }));
   on(root, "[data-series]", "click", () => dialog("转成系列的第 1 集", `<label>系列名称<input name="name" required maxlength="120" value="${esc(p.title)}"></label>`, "创建系列", async (f) => {
     go(`/s/${(await api(`/api/v1/projects/${id}/to-series`, { method: "POST", body: f })).id}`);
@@ -37,11 +59,17 @@ export async function render(root, id) {
   on(root, "[data-del]", "click", async () => {
     if (!confirm(`删除「${p.title}」？文件和视频会移到服务器的 data/trash。`)) return;
     await api(`/api/v1/projects/${id}`, { method: "DELETE" });
-    go("/");
+    go(p.series ? `/s/${p.series.id}` : "/", { replace: true });
   });
 
   makePanel(root, id, p);
-  await chatPanel(root.querySelector("[data-chat]"), id, () => files.list().then(() => tab("files")));
+  // AI 写了文件：刷新列表；宽屏顺手切到文件，窄屏留在对话里不打断（消息下方有「已写入」）
+  const onFiles = () => {
+    files.show(file = undefined);
+    if (!narrow.matches) go(`/p/${id}/files`, { replace: true });
+  };
+  chatPanel(root.querySelector('[data-pane="chat"]'), id, onFiles).catch((e) => toast(e.message, "error"));
+  return { update };  // 不等对话加载完：标签点下去立刻能切
 }
 
 // ---------------------------------------------------------------- 制作

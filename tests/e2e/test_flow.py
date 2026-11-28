@@ -87,7 +87,7 @@ def test_whole_loop(page: Page, app, fake, mp4):
     expect(page.get_by_role("heading", name="第一支片")).to_be_visible()
     send(page, "你好", "echo", "可用")
     send(page, "整理成文件", "files", "已写入：文字稿.md")
-    page.get_by_role("button", name="📄 文字稿.md").click()
+    page.get_by_role("link", name="📄 文字稿.md").click()
     expect(page.locator(".side table")).to_contain_text("片头")
     page.get_by_role("button", name="编辑", exact=True).last.click()
     page.get_by_label("文件内容").fill("# 我改过\n")
