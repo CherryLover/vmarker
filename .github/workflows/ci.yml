@@ -1,6 +1,8 @@
 # ============================================================================
 #  CI/CD：测试（与本地 scripts/ci.sh 相同）→ main 分支构建并推送公开镜像到 GHCR
-#  服务器端拉取 ghcr.io/cherrylover/vmarker:latest 即可，不需要登录。
+#        → 经 Tailscale 临时节点 SSH 到 docker-test，上线刚测过的那个 :sha
+#  服务器端钥匙被 command= 锁死在 /opt/deploy/deploy.sh：只能「上线某服务的某个 sha」，
+#  健康检查不过会自动回滚并让本 job 失败。
 # ============================================================================
 name: ci
 
@@ -49,3 +51,28 @@ jobs:
             ghcr.io/cherrylover/vmarker:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    needs: image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-vmarker
+      cancel-in-progress: false
+    steps:
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      - name: 上线到 docker-test
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/deploy && printf '%s\n' "$KEY" > ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -n -i ~/.ssh/deploy -o IdentitiesOnly=yes -o BatchMode=yes \
+              -o ConnectTimeout=30 -o ServerAliveInterval=15 \
+              root@100.83.147.43 "vmarker ${{ github.sha }}"

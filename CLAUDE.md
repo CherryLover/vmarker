@@ -16,7 +16,7 @@ vmarker/
 │   ├── api/             settings / project / chat / task 路由 · mcp_server
 │   └── web/             ui 工具 · md 渲染 · views/ 各页面
 ├── tests/               fakes 假上游 · unit 接口与 MCP · e2e 浏览器全链路
-├── deploy/              docker-compose + update.sh
+├── deploy/              docker-compose + update.sh（手工更新；日常由 CI 的 deploy job 自动上线）
 ├── scripts/ci.sh        本地 CI = GitHub Actions 跑的同一个脚本
 └── Dockerfile           只有代码；容器只读，数据全在挂载的 /data
 ```
@@ -54,3 +54,4 @@ data/                          docker-compose 同级，唯一可写目录
 - 2026-11-26 下载内嵌封面：带封面的版本 `?download=1` 给 ffmpeg `-c copy` 重封装的副本（attached_pic / covr），按需生成、按 mtime 缓存，失败退回原片；在线播放仍是原片。ffmpeg 用 imageio-ffmpeg 自带静态版，镜像和本机都不用装系统包。
 - 2026-11-26 修：原片已带封面时下载多出一条 mjpeg 视频轨（Quick Look 播不了）。改为只映射 `0:V` + `0:a?` + 新封面，封面序号按真视频轨数计算；已有封面一律替换。
 - 2026-11-26 MCP 覆盖全部接口：新增 `api_index`（列出全部 REST）与 `call_api`（进程内转发，鉴权不变）；API Key 新增 `admin` 权限（等同所有者，隐含 plan + produce），`PUT /api/v1/keys/{kid}` 改权限，设置页一键授予 / 收回。
+- 2026-11-28 自动上线：CI 在 image 之后加 deploy job，经 Tailscale（tag:ci 临时节点）SSH 到 docker-test，执行 `/opt/deploy/deploy.sh vmarker <sha>`；钥匙被 command= 锁死，健康检查失败自动回滚到 `:previous` 并让 job 失败。
