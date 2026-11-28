@@ -17,6 +17,7 @@ COPY app ./app
 RUN useradd --system --uid 10001 vmarker
 USER vmarker
 EXPOSE 8710
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+# 启动期每 2 秒查一次：Traefik 只给 healthy 的容器路由，查得慢上线后就会 404 几十秒
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=60s --start-interval=2s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8710/healthz', timeout=4)"
 CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8710", "--proxy-headers", "--forwarded-allow-ips", "*"]
